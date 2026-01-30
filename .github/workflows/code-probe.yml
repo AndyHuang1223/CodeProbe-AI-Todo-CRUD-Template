@@ -1,0 +1,104 @@
+name: "CodeProbe-AI: Socratic Review"
+
+on:
+  workflow_run:
+    workflows: ["CI - .NET Build"]
+    types: [completed]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.id }}
+  cancel-in-progress: true
+
+jobs:
+  build-failed-comment:
+    if: ${{ github.event.workflow_run.conclusion != 'success' && github.event.workflow_run.event == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Upsert build failure comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import os, json, subprocess, datetime
+
+          pr = os.environ["PR_NUMBER"]
+          repo = os.environ["REPO"]
+          run_url = os.environ["RUN_URL"]
+          conclusion = os.environ["CONCLUSION"]
+
+          signature = "<!-- codeprobe-build-failed -->\n### 🧱 Build 未通過"
+          now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+          def gh_json(args):
+            out = subprocess.check_output(["gh", *args], text=True)
+            return json.loads(out) if out.strip() else None
+
+          comments = gh_json(["api", f"repos/{repo}/issues/{pr}/comments", "--paginate"]) or []
+
+          target = None
+          for c in comments:
+            if signature in (c.get("body") or ""):
+              target = c
+          body = (
+            f"{signature}\n\n"
+            f"這次 PR 的 CI build 結果是：**{conclusion}**。\n\n"
+            "請先修到可以建置成功（綠燈），我才會進行 CodeProbe-AI 的蘇格拉底提問。\n\n"
+            f"Build 連結：{run_url}\n\n"
+            f"_Last update: {now}_\n"
+          )
+
+          if target:
+            comment_id = target["id"]
+            old_body = target.get("body") or ""
+            if run_url in old_body:
+              print("Same run URL already present; skip update.")
+            else:
+              subprocess.run(
+                ["gh", "api", f"repos/{repo}/issues/comments/{comment_id}", "-X", "PATCH", "-f", f"body={body}"],
+                check=True,
+              )
+              print(f"Updated comment id={comment_id}")
+          else:
+            subprocess.run(["gh", "pr", "comment", pr, "--body", body], check=True)
+            print("Created new comment")
+          PY
+
+  ai-review:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout Repository (base)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Dependencies
+        run: pip install openai==1.56.2
+
+      - name: Run AI Examiner Script
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          BASE_REF: ${{ github.event.workflow_run.pull_requests[0].base.ref }}
+        run: python scripts/ai_examiner.py
