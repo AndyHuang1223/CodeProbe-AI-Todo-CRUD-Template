@@ -30,7 +30,7 @@
 
 ### 流程
 
-1. **Fork** 本專案並建立自己的開發分支（[點我一鍵 Fork](fork)）
+1. **Fork** 本專案並建立自己的開發分支（[點我一鍵 Fork](https://github.com/AndyHuang1223/CodeProbe-AI-Todo-CRUD-Template/fork)）
 2. **發起 PR**：完成後發起 PR 回到本倉庫（請勿點擊 Merge）
 3. **AI 挑戰**：AI 會在 PR 下方提出 3 個針對性問題
    - 你可以直接回覆討論，或修正代碼後再次提交
@@ -57,7 +57,7 @@
 
 ## 如何開始（Getting Started）
 
-1. Fork 本倉庫到你的 GitHub 帳號（[點我一鍵 Fork](fork)）
+1. Fork 本倉庫到你的 GitHub 帳號（[點我一鍵 Fork](https://github.com/AndyHuang1223/CodeProbe-AI-Todo-CRUD-Template/fork)）
 2. 建立功能分支：`git checkout -b feature/my-todo-impl`
 3. 開始撰寫代碼並確保可編譯與運行
 4. 提交 PR 回到本倉庫
